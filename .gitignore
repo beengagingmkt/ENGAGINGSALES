@@ -1,0 +1,13 @@
+# NUNCA vai para o GitHub: dados seus, chaves, sessão do WhatsApp e código de terceiros baixado pelo instalador
+data/
+gateway/
+vendor/
+*.db
+*.db-shm
+*.db-wal
+settings.json
+.env
+.engine/
+__pycache__/
+*.pyc
+.DS_Store

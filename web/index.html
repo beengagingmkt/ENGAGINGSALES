@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Garimpo · Radar de Prospecção</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'><circle cx='20' cy='20' r='18' fill='%2305070c' stroke='%23ffcf4a' stroke-width='2'/><path d='M20 9l8 8-8 14-8-14z' fill='%23ffcf4a'/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<script>try{var t=localStorage.getItem("garimpo_theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+<body>
+<div class="app" id="app">
+  <header>
+    <div class="brand">
+      <div class="logo">
+        <svg viewBox="0 0 40 40">
+          <defs><linearGradient id="lg" x1="0" x2="1"><stop offset="0" stop-color="#ffcf4a"/><stop offset="1" stop-color="#2ef2ff"/></linearGradient>
+            <radialGradient id="sg"><stop offset="0" stop-color="#2ef2ff" stop-opacity=".0"/><stop offset="1" stop-color="#2ef2ff" stop-opacity=".55"/></radialGradient></defs>
+          <circle cx="20" cy="20" r="18.5" fill="none" stroke="url(#lg)" stroke-width="1.5"/>
+          <circle cx="20" cy="20" r="11" fill="none" stroke="rgba(46,242,255,.25)"/>
+          <path class="sweep" d="M20 20 L20 1.5 A18.5 18.5 0 0 1 36 11 Z" fill="url(#sg)"/>
+          <path d="M20 12l6 6-6 10-6-10z" fill="#ffcf4a"/><path d="M14 18h12l-6 10z" fill="#ff9f1c"/>
+        </svg>
+      </div>
+      <div><h1>GARIMPO</h1><small>radar de prospecção</small></div>
+    </div>
+    <nav class="tabs" id="tabs">
+      <button data-v="radar" class="on">◎ Radar</button>
+      <button data-v="leads">◆ Leads <span class="n" id="nLeads">0</span></button>
+      <button data-v="funil">▤ Funil</button>
+      <button data-v="intel">◭ Inteligência</button>
+      <button data-v="shield">🛡 Blindagem <span class="n" id="nCli">0</span></button>
+      <button data-v="wa">💬 WhatsApp <i class="dot" id="waDot" style="margin-left:2px"></i></button>
+    </nav>
+    <div class="hright">
+      <select class="select-hunt" id="citySel" title="Filtrar por cidade"></select>
+      <select class="select-hunt" id="huntSel" title="Filtrar por caçada"></select>
+      <span class="pill" title="Motor de raspagem"><i class="dot" id="engDot"></i><span id="engTxt">motor…</span></span>
+      <span class="pill" title="Claude CLI para análises"><i class="dot" id="aiDot"></i>claude</span>
+      <button class="btn-ghost" id="updBtn" hidden style="color:var(--gold);border-color:var(--gold)">⬆ Atualizar</button>
+      <button class="btn-ghost" id="langBtn" data-noi18n title="Switch to English">EN</button>
+      <button class="btn-ghost" id="themeBtn" title="Tema claro/escuro">◐</button>
+      <button class="btn-ghost" id="coffee" title="Gostou? Me pague um café">☕</button>
+      <button class="btn-ghost" id="sound" title="Som ao achar lead quente">🔊</button>
+      <a class="btn-ghost" id="export" href="/api/export.csv">⬇ CSV</a>
+    </div>
+  </header>
+
+  <!-- ESQUERDA -->
+  <aside class="col">
+    <form class="panel hunt" id="huntForm" autocomplete="off">
+      <h3>⟟ Nova caçada</h3>
+      <div class="field">
+        <label>O que caçar</label>
+        <div class="box" id="kwBox"><input id="kwIn" placeholder="ex: hamburgueria  ↵"></div>
+        <div class="sugs" id="sugs" data-noi18n></div>
+      </div>
+      <div class="field ac">
+        <label>Onde</label>
+        <div class="box"><span>📍</span><input id="cityIn" placeholder="Cidade… (ex: Porto Alegre)"></div>
+        <div class="ac-list" id="acList" hidden></div>
+      </div>
+      <div class="field">
+        <label>Modo de varredura</label>
+        <div class="seg" id="modeSeg"><button type="button" data-m="city" class="on">🏙 Cidade inteira</button><button type="button" data-m="bairros">🏘 Bairro a bairro</button></div>
+        <div class="bpick" id="bpick" hidden>
+          <div class="bhead"><div class="search mini">🔎<input id="bq" placeholder="Filtrar bairros…"></div><button type="button" class="lnk" id="bAll">todos</button><button type="button" class="lnk" id="bNone">nenhum</button></div>
+          <div class="blist" id="blist"></div>
+          <div class="bfoot" id="bfoot"></div>
+        </div>
+      </div>
+      <div class="field">
+        <label id="depthLbl">Alcance por termo</label>
+        <div class="range"><input type="range" id="depth" min="1" max="6" value="2"><output id="depthOut">~40 lugares</output></div>
+      </div>
+      <div class="toggles">
+        <label class="tg"><input type="checkbox" id="optSites" checked><i></i>E-mails &amp; redes</label>
+        <label class="tg"><input type="checkbox" id="optRev"><i></i>Ler avaliações</label>
+      </div>
+      <button class="go" id="goBtn" type="submit">INICIAR VARREDURA</button>
+    </form>
+    <section class="panel history">
+      <header><h3>☰ Caçadas</h3><span class="mono" style="font-size:11px;color:var(--ink3)" id="hCount"></span></header>
+      <div class="hlist" id="hList"></div>
+    </section>
+  </aside>
+
+  <!-- CENTRO -->
+  <main class="center">
+    <section class="view on" id="v-radar">
+      <div class="kpis" id="kpis"></div>
+      <div class="panel progress" id="prog">
+        <div class="steps" id="steps"></div>
+        <span class="ptitle" id="ptitle">Nenhuma caçada rodando</span>
+        <span class="pct" id="pct">—</span>
+        <button class="stop" id="stopBtn" hidden>■ parar</button>
+      </div>
+      <div class="panel mapwrap">
+        <div id="map"></div>
+        <div class="radar"><div class="rings"></div><div class="cross"></div><div class="sw"></div></div>
+        <div class="scanlabel">VARRENDO</div>
+        <div class="legend"><span><i style="background:var(--hot)"></i>🔥 quente</span><span><i style="background:var(--warm)"></i>morno</span><span><i style="background:var(--cold)"></i>frio</span></div>
+        <div class="top5" id="top5"></div>
+      </div>
+    </section>
+
+    <section class="view" id="v-leads">
+      <div class="panel toolbar" id="filters"></div>
+      <div class="grid" id="grid"></div>
+    </section>
+
+    <section class="view" id="v-funil">
+      <div class="kanban" id="kanban"></div>
+    </section>
+
+    <section class="view" id="v-shield">
+      <div class="panel shead">
+        <div class="stitle"><h2>🛡 Blindagem dos seus clientes</h2><p>Veja seus clientes com os olhos de um prospectador: cada brecha aqui é uma porta para um concorrente entrar.</p></div>
+        <form class="sfind" id="findForm" autocomplete="off">
+          <div class="search"><span>🔎</span><input id="findName" placeholder="Nome do negócio do seu cliente"></div>
+          <div class="search" style="flex:0 1 220px;min-width:180px"><span>🏷</span><input id="findCat" placeholder="Tipo (ex: pet shop)"></div>
+          <button class="btn gold" type="submit">Procurar e blindar</button>
+          <button class="btn" type="button" id="recheckAll">↻ Re-checar todos</button>
+        </form>
+        <div class="skpis" id="skpis"></div>
+      </div>
+      <div id="cands"></div>
+      <div class="sgrid" id="sgrid"></div>
+    </section>
+
+    <section class="view" id="v-wa">
+      <div class="wagrid">
+        <div class="panel wacard wide" id="waAlert" hidden></div>
+        <div class="panel wacard">
+          <h3>⚙ Conexão</h3>
+          <div class="seg" id="provSeg" style="margin:10px 0 12px"><button type="button" data-prov="gowa">🟢 Go WhatsApp (neste Mac)</button><button type="button" data-prov="evolution">Evolution (VPS)</button></div>
+          <div id="gowaBox" hidden>
+            <p class="sub">Gateway leve (Go) rodando só neste Mac, em 127.0.0.1. Avisa o Garimpo das respostas em tempo real. Ignora grupos e stories.</p>
+            <div class="row" style="margin-top:0"><span id="gwConn" class="wastate"></span></div>
+            <div class="row"><button class="btn gold" id="gwConnect" type="button">📱 Conectar WhatsApp</button><button class="btn" id="gwRecheck" type="button">↻ Testar</button></div>
+          </div>
+          <div id="evoBox">
+          <p class="sub">Use a Evolution do seu VPS. A API key fica salva só neste Mac (data/settings.json).</p>
+          <form id="waForm" autocomplete="off" class="waform">
+            <label>URL da Evolution<input id="evoUrl" placeholder="https://evolution.seudominio.com.br"></label>
+            <label>API key<input id="evoKey" type="password" placeholder="cole a API key (global ou da instância)"></label>
+            <label>Instância<input id="evoInst" placeholder="nome da instância conectada ao seu WhatsApp"></label>
+            <div class="row"><button class="btn gold" type="submit">Salvar e testar</button><span id="waConn" class="wastate"></span></div>
+          </form>
+          </div>
+        </div>
+        <div class="panel wacard">
+          <h3>🚀 Prospecção automática</h3>
+          <p class="sub">O Garimpo manda a fila no seu ritmo, só no horário escolhido, com intervalo aleatório entre as mensagens.</p>
+          <div class="waform">
+            <div class="two"><label>Máximo por dia<input id="waDaily" type="number" min="1" max="300"></label>
+              <label>Intervalo (seg)<span class="row" style="margin:0"><input id="waMin" type="number" min="30"> a <input id="waMax" type="number" min="30"></span></label></div>
+            <div class="two"><label>Começa<input id="waStart" type="time"></label><label>Termina<input id="waEnd" type="time"></label></div>
+            <div class="days" id="waDays"></div>
+            <div class="row"><button class="btn" id="waSaveAuto" type="button">Salvar ritmo</button><button class="go small" id="waToggle" type="button">▶ LIGAR DISPAROS</button></div>
+          </div>
+          <div class="wastats" id="waStats"></div>
+        </div>
+        <div class="panel wacard wide" id="waHealth">
+          <h3>📊 Estabilidade da conexão <span id="hProv" class="mono" style="letter-spacing:0;color:var(--ink3)"></span></h3>
+          <div class="wastats" id="hStats" style="margin-top:12px"></div>
+          <div class="qlist" id="hEvents" style="margin-top:12px;max-height:230px"></div>
+        </div>
+        <div class="panel wacard wide">
+          <h3>✍ Sua apresentação na mensagem</h3>
+          <p class="sub">Entra no começo e no fim de cada mensagem. Ao salvar, todas as mensagens (inclusive as da fila) são refeitas.</p>
+          <div class="presgrid">
+            <form class="waform" id="meForm" autocomplete="off">
+              <div class="two"><label>Seu nome<input id="meName"></label><label>Agência<input id="meAgency"></label></div>
+              <div class="two"><label>Sua cidade<input id="meCity"></label><label>Link de exemplo (cliente)<input id="meLink" placeholder="https://..."></label></div>
+              <div class="two"><label>Seu WhatsApp (botão do diagnóstico)<input id="meWa"></label><label>Instagram<input id="meIg"></label></div>
+              <div class="two"><label>Site<input id="meSite"></label><label>Primeira mensagem<select id="msgMode" class="bsel" style="max-width:none;padding:9px 11px"><option value="diagnostico">Curta, oferece o diagnóstico (EU QUERO)</option><option value="completa">Completa, com todas as dicas</option><option value="modelo">Meu modelo (abaixo)</option></select></label></div>
+              <div class="two"><label>Cidades vizinhas ("aqui"), separadas por vírgula<input id="meRegion" placeholder="Itajaí, Blumenau"></label><label>Tratamento<select id="meArt" class="bsel" style="max-width:none;padding:9px 11px"><option value="o">Aqui é o (nome)</option><option value="a">Aqui é a (nome)</option></select></label></div>
+              <div class="two"><label>Seus serviços (frase)<input id="meServices" placeholder="tráfego pago, site e fotografia"></label><label>Nome do seu método (opcional)<input id="meMethod"></label></div>
+              <fieldset style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:4px 0"><legend style="color:var(--ink2);font-size:12.5px;padding:0 6px">📝 Modelos de mensagem</legend>
+                <div class="two"><label>Modelo<select id="tplSel" class="bsel" style="max-width:none;padding:9px 11px"></select></label><label>Nome do modelo<input id="tplName" maxlength="60"></label></div>
+                <label>Texto<textarea id="tplText" rows="9" style="font:inherit;padding:9px 11px"></textarea></label>
+                <p class="sub" style="margin:4px 0">Campos: {nome} {nota} {avaliacoes} {categoria} {cidade} {meu_nome} {agencia} {minha_cidade} {link} {whatsapp} {instagram} {site}. Linha com campo vazio (ex.: lead sem avaliações) é tirada da mensagem. Negrito no WhatsApp: *texto*.</p>
+                <div class="row"><button type="button" class="btn" id="tplNew">+ Novo modelo</button><button type="button" class="btn" id="tplDel">Excluir</button><label class="tg" style="text-transform:none;letter-spacing:0;font:500 12.5px var(--font);color:var(--ink2);flex-direction:row"><input type="checkbox" id="tplUse"><i></i>Usar este na primeira mensagem</label></div>
+              </fieldset>
+              <details style="margin-top:4px"><summary style="cursor:pointer;color:var(--ink2);font-size:12.5px">Avançado: páginas de diagnóstico públicas</summary>
+                <div class="waform" style="margin-top:10px"><label>Endereço público das páginas (https://seusite.com/diagnostico)<input id="diagBase" placeholder="https://..."></label>
+                <label>Destino do rsync para publicar (usuario@servidor:/pasta/)<input id="diagPublish" placeholder="usuario@servidor:/var/www/diagnostico/"></label>
+                <label>URL da sua logo (https, opcional)<input id="meLogo" placeholder="https://.../logo.png"></label></div></details>
+              <label class="tg" style="text-transform:none;letter-spacing:0;font:500 12.5px var(--font);color:var(--ink2);flex-direction:row"><input type="checkbox" id="diagAuto"><i></i>Quando responder EU QUERO, montar o diagnóstico com o Claude e mandar o link sozinho</label>
+              <div class="row"><button class="btn gold" type="submit">Salvar apresentação</button></div>
+            </form>
+            <div><div class="sub" style="margin:0 0 6px" id="meFor">Prévia</div><div class="sample wapreview" id="mePreview"></div></div>
+          </div>
+        </div>
+        <div class="panel wacard wide">
+          <h3 style="justify-content:space-between">📤 Fila e envios <span class="row" style="margin:0"><select class="bsel" id="qFilter"><option value="">Todos</option><option value="fila">Na fila</option><option value="enviado">Enviados</option><option value="respondeu">Responderam</option><option value="erro">Erros / sem WhatsApp</option></select><button class="btn" id="qClear">Esvaziar fila</button></span></h3>
+          <p class="sub">Para encher a fila: aba Leads, filtre (ex.: 🔥 Quentes + WhatsApp) e clique em “🚀 Prospectar”. Quem responde vai sozinho para Negociando no funil.</p>
+          <div class="qlist" id="qlist"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="view" id="v-intel">
+      <div class="intel" id="intel"></div>
+    </section>
+  </main>
+
+  <!-- DIREITA -->
+  <aside class="col right">
+    <section class="panel spot" id="spot"><h3>★ Lead em destaque</h3><div class="empty">O melhor lead da caçada aparece aqui.</div></section>
+    <section class="panel feed">
+      <div class="head"><h3>⌁ Ao vivo</h3><span class="live">LIVE</span></div>
+      <div class="lines" id="lines"></div>
+    </section>
+  </aside>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer"></aside>
+<div class="tip" id="tip"></div>
+<div class="modal" id="modal"></div>
+<div class="toast" id="toast"></div>
+<canvas class="boom" id="boom"></canvas>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="app.js"></script>
+<script src="i18n.js"></script>
+</body>
+</html>

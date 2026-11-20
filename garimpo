@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Garimpo: ./garimpo start | stop | status | install
+cd "$(dirname "$0")" || exit 1
+PORT="${GARIMPO_PORT:-7777}"
+
+need_install() {
+  if [ -x gateway/bin/gowa ] && [ -f vendor/kit/scripts/engine.py ]; then return 1; else return 0; fi
+}
+
+case "${1:-start}" in
+  install)
+    exec python3 install.py
+    ;;
+  start)
+    if need_install; then python3 install.py || exit 1; fi
+    export GARIMPO_OPEN=1
+    exec python3 garimpo.py
+    ;;
+  stop)
+    pids=$(lsof -tiTCP:"$PORT" -sTCP:LISTEN 2>/dev/null)
+    [ -n "$pids" ] && kill $pids && echo "Garimpo parado."
+    pkill -f "gateway/bin/gowa rest" 2>/dev/null && echo "Gateway do WhatsApp parado."
+    python3 vendor/kit/scripts/engine.py stop >/dev/null 2>&1 && echo "Motor de busca parado."
+    ;;
+  status)
+    curl -s -m 5 "http://localhost:$PORT/api/state" >/dev/null && echo "Garimpo no ar: http://localhost:$PORT" || echo "Garimpo parado."
+    ;;
+  *)
+    echo "uso: ./garimpo start | stop | status | install"
+    exit 2
+    ;;
+esac
