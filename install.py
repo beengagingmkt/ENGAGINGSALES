@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Instalador do Garimpo.
+"""Instalador do Engaging Sales.
 
-Baixa, confere e instala os dois componentes de terceiros que o Garimpo usa, direto das fontes originais:
+Baixa, confere e instala os dois componentes de terceiros que o Engaging Sales usa, direto das fontes originais:
 
   1. Motor de busca do Google Maps  (Mahanaicoach/google-maps-scraper-kit, MIT)
      preso a um commit exato: o Git confere o conteúdo pelo hash do commit.
@@ -49,7 +49,7 @@ def platform_key():
     system = {"Darwin": "darwin", "Linux": "linux"}.get(platform.system())
     arch = {"arm64": "arm64", "aarch64": "arm64", "x86_64": "amd64", "AMD64": "amd64"}.get(platform.machine())
     if not system or not arch or f"{system}_{arch}" not in GOWA_SHA256:
-        die(f"Sistema não suportado ({platform.system()} {platform.machine()}). O Garimpo roda em macOS e Linux. "
+        die(f"Sistema não suportado ({platform.system()} {platform.machine()}). O Engaging Sales roda em macOS e Linux. "
             "No Windows, use o WSL2 (Ubuntu) e rode o instalador lá dentro.")
     return f"{system}_{arch}", system, arch
 
@@ -110,7 +110,7 @@ def install_gateway(key, system, arch):
     name = f"whatsapp_{GOWA_VERSION}_{key}.zip"
     url = f"https://github.com/{GOWA_REPO}/releases/download/v{GOWA_VERSION}/{name}"
     say(f"→ Baixando o gateway do WhatsApp (go-whatsapp-web-multidevice v{GOWA_VERSION}, {key})…")
-    tmp = tempfile.mkdtemp(prefix="garimpo-gateway-")  # pasta nova e vazia: nada baixado roda a partir daqui
+    tmp = tempfile.mkdtemp(prefix="engaging-gateway-")  # pasta nova e vazia: nada baixado roda a partir daqui
     try:
         zpath = os.path.join(tmp, name)
         r = run(["curl", "-fsSL", "--retry", "3", "-m", "300", "-o", zpath, url])
@@ -147,14 +147,14 @@ def install_gateway(key, system, arch):
 
 
 def main():
-    say("Garimpo: instalador\n")
+    say("Engaging Sales: instalador\n")
     key, system, arch = platform_key()
     check_basics()
     os.makedirs(os.path.join(ROOT, "data"), exist_ok=True)
     install_kit()
     install_gateway(key, system, arch)
     say("\n✓ Tudo pronto.")
-    say("  Para abrir o Garimpo:  ./garimpo start")
+    say("  Para abrir o Engaging Sales:  ./engaging-sales start")
     say("  Na primeira vez ele mostra o aviso importante e já pede o QR code do WhatsApp.")
 
 

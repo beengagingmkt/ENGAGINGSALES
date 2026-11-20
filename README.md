@@ -1,10 +1,10 @@
-# Garimpo
+# Engaging Sales
 
 **Radar de prospecção local.** Acha negócios no Google Maps, mostra em tempo real quem tem mais chance de virar
 cliente, e conversa com eles pelo WhatsApp. Tudo num painel que roda no seu computador.
 
 > ⚠️ **Leia o [aviso importante](DISCLAIMER.md) antes de usar.** O WhatsApp é conectado por um cliente **não oficial**:
-> ele pode cair, ser restringido ou ter o número banido, e **isso não é culpa do Garimpo nem de quem o publicou**.
+> ele pode cair, ser restringido ou ter o número banido, e **isso não é culpa do Engaging Sales nem de quem o publicou**.
 > **O ideal é usar a API oficial do WhatsApp** (WhatsApp Business Platform, da Meta).
 
 ## O que ele faz
@@ -25,8 +25,8 @@ cliente, e conversa com eles pelo WhatsApp. Tudo num painel que roda no seu comp
 - **Tema claro e escuro** (botão ◐) e **interface em português ou inglês** (botão EN/PT no topo). As mensagens de
   prospecção e as páginas de diagnóstico continuam em português, porque são para o público brasileiro.
 - **Atualização pelo painel:** quando sai versão nova, aparece o botão **⬆ Atualizar**. Um clique baixa, confere os
-  componentes e reinicia o Garimpo, sem perder leads nem configurações.
-- **IA opcional:** com o [Claude Code](https://www.anthropic.com/claude-code) instalado, o Garimpo analisa cada lead e
+  componentes e reinicia o Engaging Sales, sem perder leads nem configurações.
+- **IA opcional:** com o [Claude Code](https://www.anthropic.com/claude-code) instalado, o Engaging Sales analisa cada lead e
   personaliza o diagnóstico. Sem ele, o resto funciona igual.
 
 ## Instalação
@@ -45,7 +45,7 @@ O instalador baixa e **confere por hash** os dois componentes de terceiros (veja
 1. o **motor de busca** do Google Maps ([google-maps-scraper-kit](https://github.com/Mahanaicoach/google-maps-scraper-kit));
 2. o **módulo do WhatsApp** ([go-whatsapp-web-multidevice](https://github.com/aldinokemal/go-whatsapp-web-multidevice)).
 
-Depois ele abre o painel em **http://localhost:7777**. No macOS, também dá para clicar duas vezes em `Garimpo.command`.
+Depois ele abre o painel em **http://localhost:7777**. No macOS, também dá para clicar duas vezes em `Engaging Sales.command`.
 
 ### Primeira vez
 
@@ -55,13 +55,13 @@ Depois ele abre o painel em **http://localhost:7777**. No macOS, também dá par
 3. Preencha **WhatsApp, Sua apresentação** (nome, agência, cidade) para as mensagens saírem com o seu nome.
 4. Monte a primeira caçada à esquerda e clique em **Iniciar varredura**.
 
-Para parar: `./garimpo stop`. Para abrir de novo: `./garimpo start`.
+Para parar: `./engaging-sales stop`. Para abrir de novo: `./engaging-sales start`.
 
 ### Atualizar
 
 Se você instalou com `git clone`, o botão **⬆ Atualizar** aparece no topo do painel quando há versão nova (ele confere o
-GitHub ao abrir e a cada 6 horas). Pelo terminal dá no mesmo: `git pull && ./garimpo install`. Se você alterou arquivos do
-Garimpo, o botão não atualiza sozinho (para não sobrescrever o seu trabalho): use o `git pull`.
+GitHub ao abrir e a cada 6 horas). Pelo terminal dá no mesmo: `git pull && ./engaging-sales install`. Se você alterou arquivos do
+Engaging Sales, o botão não atualiza sozinho (para não sobrescrever o seu trabalho): use o `git pull`.
 
 ## Como usar o WhatsApp com cuidado
 
@@ -82,7 +82,7 @@ Avançado**, informe:
 
 - o **endereço público** (por exemplo `https://seusite.com/diagnostico`);
 - o **destino do rsync** do seu servidor (por exemplo `usuario@servidor:/var/www/diagnostico/`), com chave SSH já
-  configurada. O Garimpo sincroniza as páginas sozinho.
+  configurada. O Engaging Sales sincroniza as páginas sozinho.
 
 Sirva essa pasta com `X-Robots-Tag: noindex` para o Google não indexar. Cada página tem um código aleatório no endereço.
 
@@ -92,9 +92,9 @@ Quase tudo se configura no painel. Variáveis de ambiente opcionais:
 
 | Variável | Para que serve | Padrão |
 |---|---|---|
-| `GARIMPO_PORT` | porta do painel | `7777` |
-| `GARIMPO_ENGINE_PORT` | porta do motor de busca | `8791` |
-| `GARIMPO_GOWA_PORT` | porta do gateway do WhatsApp | `3010` |
+| `ENGAGING_PORT` | porta do painel | `7777` |
+| `ENGAGING_ENGINE_PORT` | porta do motor de busca | `8791` |
+| `ENGAGING_GOWA_PORT` | porta do gateway do WhatsApp | `3010` |
 | `CLAUDE_BIN` | caminho do comando `claude` (IA) | procura no `PATH` |
 
 ## Segurança e privacidade
@@ -102,7 +102,7 @@ Quase tudo se configura no painel. Variáveis de ambiente opcionais:
 - O painel só aceita conexões do **próprio computador** (`127.0.0.1`) e recusa chamadas vindas de outros sites abertos
   no seu navegador (checa `Host`, `Origin` e um cabeçalho próprio).
 - O gateway do WhatsApp também só escuta em `127.0.0.1`, com **usuário e senha gerados na sua instalação**, e avisa o
-  Garimpo por **webhook assinado (HMAC)**. Ele não envia dados para ninguém além dos servidores do WhatsApp.
+  Engaging Sales por **webhook assinado (HMAC)**. Ele não envia dados para ninguém além dos servidores do WhatsApp.
 - Seus leads, configurações e a **sessão do WhatsApp** ficam em `data/` e `gateway/data/` **no seu computador**.
   O `.gitignore` os exclui. **Nunca publique essas pastas.**
 - Nenhuma telemetria. Os únicos acessos de rede são: WhatsApp, Google Maps (pelo motor de busca), OpenStreetMap
@@ -111,12 +111,12 @@ Quase tudo se configura no painel. Variáveis de ambiente opcionais:
 ## Como funciona
 
 ```
- navegador (painel)  ⇄  garimpo.py (127.0.0.1:7777, SQLite)  ⇄  motor de busca (Chrome sem janela → Google Maps)
+ navegador (painel)  ⇄  engaging.py (127.0.0.1:7777, SQLite)  ⇄  motor de busca (Chrome sem janela → Google Maps)
                                   ⇅
                         gateway do WhatsApp (127.0.0.1:3010)  ⇄  servidores do WhatsApp
 ```
 
-- `garimpo.py`: servidor, banco, nota dos leads, mensagens, fila de disparo, funil e leitura das respostas.
+- `engaging.py`: servidor, banco, nota dos leads, mensagens, fila de disparo, funil e leitura das respostas.
 - `diag.py`: gera a página do diagnóstico.
 - `web/`: o painel (HTML, CSS e JavaScript puro, sem build).
 - `install.py`: baixa e confere os componentes de terceiros.
@@ -125,7 +125,7 @@ Quase tudo se configura no painel. Variáveis de ambiente opcionais:
 
 - A interface tem versão em inglês, mas as mensagens para os leads e os diagnósticos são em português (Brasil).
 - Mensagens e regras de números pensadas para o **Brasil, em português**. Celulares brasileiros têm duas grafias
-  (com e sem o 9 depois do DDD): o Garimpo escolhe sozinho (DDD 31 ou maior fica sem o 9, ou usa a conversa que já
+  (com e sem o 9 depois do DDD): o Engaging Sales escolhe sozinho (DDD 31 ou maior fica sem o 9, ou usa a conversa que já
   existe), mas isso foi validado apenas em alguns DDDs.
 - Roda em macOS e Linux. Windows só via WSL2.
 - Sem a API oficial do WhatsApp (ainda).
@@ -133,30 +133,18 @@ Quase tudo se configura no painel. Variáveis de ambiente opcionais:
 
 ## Contribuir
 
-Issues e pull requests são bem-vindos. Antes de abrir um PR, rode `python3 -m py_compile garimpo.py diag.py install.py`
+Issues e pull requests são bem-vindos. Antes de abrir um PR, rode `python3 -m py_compile engaging.py diag.py install.py`
 e confira que nada de dado pessoal foi parar no código.
-
-## Apoie ☕
-
-O Garimpo é grátis e vai continuar assim. Ele mostra um convite discreto na primeira caçada concluída e depois a cada 50
-(o botão ☕ no topo do painel abre o mesmo convite, com QR Code, quando você quiser). Se ele te ajudou, um Pix de qualquer valor ajuda
-a manter e melhorar:
-
-<img src="web/pix.svg" width="160" alt="QR Code do Pix">
-
-**Chave Pix:** `c6a0d335-775a-4a2e-bb7a-2dfbf3f2cb67` (Willian Claf)
-
-Se fizer um fork, troque os dados em `SUPPORT` no `garimpo.py`.
 
 ## Licença e créditos
 
-[MIT](LICENSE). O Garimpo usa o trabalho de muita gente: veja os [créditos](CREDITS.md).
+[MIT](LICENSE). O Engaging Sales usa o trabalho de muita gente: veja os [créditos](CREDITS.md).
 
 ---
 
 ## English summary
 
-**Garimpo** is a local lead-prospecting radar: it finds businesses on Google Maps, scores them by opportunity, and
+**Engaging Sales** is a local lead-prospecting radar: it finds businesses on Google Maps, scores them by opportunity, and
 talks to them over WhatsApp, in a live dashboard that runs on your own machine (macOS/Linux, Python 3.9+, stdlib only).
 `./install.sh` downloads and hash-verifies the third-party pieces (the Google Maps engine by
 [@Mahanaicoach](https://github.com/Mahanaicoach) and the WhatsApp gateway by

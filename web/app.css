@@ -489,3 +489,4 @@ textarea.pitch{min-height:150px}
 ul.terms{list-style:none;display:flex;flex-direction:column;gap:10px;margin-top:12px;font-size:13px;color:var(--ink2);line-height:1.55}
 ul.terms li{padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--tint1)}
 ul.terms b{color:var(--ink)}ul.terms code{font-family:var(--mono);font-size:12px;color:var(--gold)}
+.brandlogo{display:block;height:40px;border-radius:8px}

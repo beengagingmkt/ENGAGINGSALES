@@ -116,6 +116,7 @@ def compare(me, avg, lead, label, fmt, maxv=None):
 
 def render(d, i, peers, pf, ai=None, logo="", city="", when=None):
     when = when or datetime.now()
+    red = pf.get("brand_color") or RED
     ai = ai or {}
     ars, total, food, delivery = areas(d, i)
     for a in ars:
@@ -170,6 +171,9 @@ def render(d, i, peers, pf, ai=None, logo="", city="", when=None):
 <div class="cols"><div><h5>O que vimos</h5><ul>{''.join(f'<li>{e(x)}</li>' for x in a['vimos'])}</ul></div>
 <div><h5>O que fazer</h5><ul class="do">{''.join(f'<li>{e(x)}</li>' for x in a['fazer'][:4])}</ul></div></div>
 {f'<p class="ai">{e(a["ia"])}</p>' if a.get('ia') else ''}</div>""" for a in ars)
+    cases = [x.strip() for x in (pf.get("diag_cases") or "").splitlines() if x.strip()]
+    cases_html = ('<section><h2><small>Resultados</small>Clientes e cases</h2><div class="svc">'
+                  + "".join(f'<div class="sv"><span>{e(x)}</span></div>' for x in cases) + "</div></section>") if cases else ""
     thumb = d.get("thumbnail") if str(d.get("thumbnail") or "").startswith("https://") else ""
     return f"""<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow,noarchive"><title>Diagnóstico gratuito · {e(name)}</title>
@@ -178,15 +182,15 @@ def render(d, i, peers, pf, ai=None, logo="", city="", when=None):
 *{{box-sizing:border-box;margin:0;padding:0}}html{{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 body{{font-family:Inter,-apple-system,Segoe UI,Roboto,sans-serif;color:{INK};background:#f3f4f7;line-height:1.5}}
 .page{{max-width:820px;margin:0 auto;background:#fff}}
-.top{{display:flex;justify-content:space-between;align-items:center;padding:22px 36px;border-bottom:4px solid {RED}}}
+.top{{display:flex;justify-content:space-between;align-items:center;padding:22px 36px;border-bottom:4px solid {red}}}
 .top img{{height:58px;margin:-12px -18px}}.top .by{{text-align:right;font-size:12px;color:#5b6273}}.top .by b{{display:block;color:{INK};font-size:14px}}
 .hero{{padding:34px 36px 24px;display:grid;grid-template-columns:1fr 300px;gap:24px;align-items:center;background:linear-gradient(135deg,#fff 55%,#fff1f1)}}
-.tag{{display:inline-block;background:{RED};color:#fff;font-size:11px;font-weight:800;letter-spacing:.14em;padding:5px 10px;border-radius:99px;text-transform:uppercase}}
+.tag{{display:inline-block;background:{red};color:#fff;font-size:11px;font-weight:800;letter-spacing:.14em;padding:5px 10px;border-radius:99px;text-transform:uppercase}}
 h1{{font-size:34px;line-height:1.1;font-weight:900;margin:12px 0 6px;letter-spacing:-.02em}}.sub{{color:#5b6273;font-size:14px}}
 .hero .ph{{width:74px;height:74px;border-radius:16px;background:#eee center/cover;margin-bottom:12px;border:3px solid #fff;box-shadow:0 6px 20px rgba(0,0,0,.12)}}
 .gauge{{width:100%}}.gcap{{text-align:center;font-size:12px;color:#5b6273;margin-top:-6px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}}
 section{{padding:26px 36px;border-top:1px solid #eceef3}}h2{{font-size:20px;font-weight:900;margin-bottom:12px;letter-spacing:-.01em}}
-h2 small{{display:block;font-size:12px;color:{RED};letter-spacing:.14em;text-transform:uppercase;font-weight:800;margin-bottom:2px}}
+h2 small{{display:block;font-size:12px;color:{red};letter-spacing:.14em;text-transform:uppercase;font-weight:800;margin-bottom:2px}}
 .resumo{{font-size:15px;color:#2b303b}}
 .checks{{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;margin-top:14px}}
 .chk{{display:flex;gap:10px;align-items:center;padding:10px 12px;border-radius:12px;background:#f6f7fa;font-size:13.5px;font-weight:600}}
@@ -194,24 +198,24 @@ h2 small{{display:block;font-size:12px;color:{RED};letter-spacing:.14em;text-tra
 .grid2{{display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start}}.bars{{width:100%}}
 .cmp h4{{font-size:13px;color:#5b6273;font-weight:700;margin-bottom:6px}}.cmp svg{{width:100%}}.cmp+.cmp{{margin-top:14px}}
 .rank{{display:flex;gap:16px;align-items:center;margin-top:16px;padding:14px 16px;border-radius:14px;background:{INK};color:#fff}}
-.rank .pos{{font-size:40px;font-weight:900;color:#fff;background:{RED};border-radius:12px;padding:4px 14px}}.rank p{{font-size:13px;color:#c8ccd6}}
+.rank .pos{{font-size:40px;font-weight:900;color:#fff;background:{red};border-radius:12px;padding:4px 14px}}.rank p{{font-size:13px;color:#c8ccd6}}
 .area{{border:1px solid #eceef3;border-radius:16px;padding:16px 18px;margin-bottom:12px;break-inside:avoid}}
 .ah{{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}}.ah h3{{font-size:16px;font-weight:800}}
 .pill{{color:#fff;font-size:11.5px;font-weight:800;padding:4px 10px;border-radius:99px;white-space:nowrap}}
 .cols{{display:grid;grid-template-columns:1fr 1.2fr;gap:18px}}h5{{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#8a90a0;margin-bottom:6px}}
 ul{{list-style:none;font-size:13.5px}}li{{padding:3px 0 3px 18px;position:relative}}li:before{{content:"•";position:absolute;left:4px;color:#9aa1b2}}
-ul.do li:before{{content:"→";color:{RED};font-weight:900;left:0}}
-.ai{{margin-top:10px;padding:10px 12px;border-radius:10px;background:#fff6f6;border-left:3px solid {RED};font-size:13.5px}}
+ul.do li:before{{content:"→";color:{red};font-weight:900;left:0}}
+.ai{{margin-top:10px;padding:10px 12px;border-radius:10px;background:#fff6f6;border-left:3px solid {red};font-size:13.5px}}
 .why{{background:{INK};color:#fff}}.why h2{{color:#fff}}.why p{{color:#d4d7df;font-size:14.5px}}
-.plan li{{padding:8px 0 8px 34px;border-bottom:1px dashed #e3e5ea;font-size:14px}}.plan li:before{{content:counter(s);counter-increment:s;left:0;top:7px;width:24px;height:24px;border-radius:50%;background:{RED};color:#fff;display:grid;place-items:center;font-size:12px;font-weight:800}}
+.plan li{{padding:8px 0 8px 34px;border-bottom:1px dashed #e3e5ea;font-size:14px}}.plan li:before{{content:counter(s);counter-increment:s;left:0;top:7px;width:24px;height:24px;border-radius:50%;background:{red};color:#fff;display:grid;place-items:center;font-size:12px;font-weight:800}}
 .plan{{counter-reset:s}}
 .svc{{display:grid;grid-template-columns:1fr 1fr;gap:10px}}.sv{{padding:14px;border-radius:14px;background:#f6f7fa;break-inside:avoid}}
 .sv b{{display:block;font-size:14.5px;margin-bottom:3px}}.sv span{{font-size:13px;color:#5b6273}}.sv em{{font-style:normal;font-size:20px;display:block;margin-bottom:4px}}
-.cta{{background:linear-gradient(135deg,{RED},#8f0b13);color:#fff;text-align:center;padding:30px 36px}}
+.cta{{background:linear-gradient(135deg,{red},{INK});color:#fff;text-align:center;padding:30px 36px}}
 .cta h2{{color:#fff;font-size:22px}}.cta p{{color:#ffd9db;font-size:14px;max-width:560px;margin:0 auto 16px}}
 .btns{{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}}.btns a{{display:inline-block;padding:12px 18px;border-radius:12px;font-weight:800;font-size:14px;text-decoration:none}}
-.b1{{background:#fff;color:{RED}}}.b2{{background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.4)}}
-.example{{margin-top:12px;font-size:13px}}.example a{{color:{RED};font-weight:700}}
+.b1{{background:#fff;color:{red}}}.b2{{background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.4)}}
+.example{{margin-top:12px;font-size:13px}}.example a{{color:{red};font-weight:700}}
 footer{{padding:16px 36px;font-size:11.5px;color:#8a90a0;text-align:center}}
 @media (max-width:700px){{.hero,.grid2,.cols,.svc{{grid-template-columns:1fr}}h1{{font-size:28px}}.top,.hero,section{{padding-left:18px;padding-right:18px}}}}
 @page{{size:A4;margin:0}}@media print{{body{{background:#fff}}.page{{max-width:none}}section,.area{{break-inside:avoid}}}}
@@ -229,6 +233,7 @@ footer{{padding:16px 36px;font-size:11.5px;color:#8a90a0;text-align:center}}
 <section><h2><small>Primeiros 30 dias</small>Plano de ação sugerido</h2><ul class="plan">{''.join(f'<li>{e(x)}</li>' for x in plano[:6])}</ul></section>
 <section><h2><small>{e(pf.get('me_agency'))}</small>Como podemos ajudar</h2><div class="svc">{''.join(f'<div class="sv"><em>{a}</em><b>{e(b)}</b><span>{e(c)}</span></div>' for a, b, c in services)}</div>
 {f'<p class="example">Exemplo de link da bio conectado ao Google de um cliente nosso: <a href="{e(pf.get("me_link"))}">{e(pf.get("me_link"))}</a></p>' if food and pf.get('me_link') else ''}</section>
+{cases_html}
 <div class="cta"><h2>Quer ajuda para colocar isso em prática?</h2><p>{('Somos de ' + e(pf.get('me_city')) + ' e trabalhamos com vários negócios da região. ') if pf.get('me_city') else ''}Fica aqui a nossa sugestão, e se em algum momento fizer sentido, estamos à disposição para somar.</p>
 <div class="btns">{f'<a class="b1" href="https://wa.me/{wa}?text={e(wa_txt)}">Falar no WhatsApp</a>' if wa else ''}{f'<a class="b2" href="{e(pf.get("me_instagram"))}">Instagram @{e(pf.get("me_instagram","").rstrip("/").split("/")[-1])}</a>' if pf.get('me_instagram') else ''}{f'<a class="b2" href="{e(pf.get("me_site"))}">{e(site_label)}</a>' if pf.get('me_site') else ''}</div></div>
 <footer>Diagnóstico feito com base em dados públicos do Google em {when.strftime('%d/%m/%Y')}. Os números podem mudar a cada dia.</footer>

@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""GARIMPO — radar de prospecção local.
+"""ENGAGING SALES — radar de prospecção local.
 
 Servidor local (só biblioteca padrão) que:
   • liga e conversa com o motor de raspagem do Google Maps (vendor/kit, MIT, porta 8791);
   • acompanha cada caçada ao vivo, pontua cada lead e transmite tudo via SSE para o painel;
-  • guarda leads, funil e notas em SQLite (data/garimpo.db);
+  • guarda leads, funil e notas em SQLite (data/engaging.db);
   • chama o Claude CLI (claude -p) para a análise de um lead quando você pede.
 
-Rode:  python3 garimpo.py      →  http://localhost:7777
+Rode:  python3 engaging.py      →  http://localhost:7777
 """
 import csv, hashlib, io, json, os, queue, re, shutil, sqlite3, subprocess, sys, tempfile, threading, time
 import unicodedata, urllib.error, urllib.parse, urllib.request
@@ -19,10 +19,19 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(ROOT, "web")
+try:  # sua logo (web/logo.png) vai embutida na página de diagnóstico quando não há URL pública
+    with open(os.path.join(WEB, "logo.png"), "rb") as _f:
+        LOGO_URI = "data:image/png;base64," + base64.b64encode(_f.read()).decode()
+except OSError:
+    LOGO_URI = ""
 KIT = os.path.join(ROOT, "vendor", "kit")
-DB_PATH = os.path.join(ROOT, "data", "garimpo.db")
-PORT = int(os.environ.get("GARIMPO_PORT", "7777"))
-ENGINE_PORT = int(os.environ.get("GARIMPO_ENGINE_PORT", "8791"))
+DB_PATH = os.path.join(ROOT, "data", "engaging.db")
+for _ext in ("", "-wal", "-shm"):  # instalações antigas: data/garimpo.db vira data/engaging.db
+    _old = os.path.join(ROOT, "data", "garimpo.db" + _ext)
+    if os.path.exists(_old) and not os.path.exists(DB_PATH + _ext):
+        os.rename(_old, DB_PATH + _ext)
+PORT = int(os.environ.get("ENGAGING_PORT", "7777"))
+ENGINE_PORT = int(os.environ.get("ENGAGING_ENGINE_PORT", "8791"))
 ENGINE = f"http://127.0.0.1:{ENGINE_PORT}"
 CLAUDE = os.environ.get("CLAUDE_BIN") or shutil.which("claude") or os.path.expanduser("~/.local/bin/claude")
 
@@ -105,7 +114,8 @@ with _db_lock:
     _cols = [r[1] for r in CONN.execute("PRAGMA table_info(leads)")]
     for _c, _t in (("client", "INTEGER DEFAULT 0"), ("wa_link", "TEXT"), ("wa_out", "TEXT"), ("wa_in", "TEXT"),
                    ("wa_in_text", "TEXT"), ("wa_jid", "TEXT"), ("diag_slug", "TEXT"), ("diag_dirty", "INTEGER DEFAULT 1"),
-                   ("diag_ai", "TEXT"), ("diag_pdf", "TEXT"), ("diag_sent", "TEXT"), ("diag_state", "TEXT")):
+                   ("diag_ai", "TEXT"), ("diag_pdf", "TEXT"), ("diag_sent", "TEXT"), ("diag_state", "TEXT"),
+                   ("deal_value", "TEXT DEFAULT ''"), ("service", "TEXT DEFAULT ''"), ("meeting", "TEXT DEFAULT ''")):
         if _c not in _cols:
             CONN.execute(f"ALTER TABLE leads ADD COLUMN {_c} {_t}")
     CONN.executescript("""
@@ -117,6 +127,8 @@ with _db_lock:
     CREATE INDEX IF NOT EXISTS wa_msgs_key ON wa_msgs(key);
     CREATE TABLE IF NOT EXISTS wa_events(id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT, provider TEXT, kind TEXT, detail TEXT);
     """)
+    if "kind" not in [r[1] for r in CONN.execute("PRAGMA table_info(outreach)")]:
+        CONN.execute("ALTER TABLE outreach ADD COLUMN kind TEXT DEFAULT ''")
     CONN.execute("INSERT OR IGNORE INTO lead_hunts(key, hunt_id) SELECT key, hunt_id FROM leads")
     # caçadas antigas (um job só) viram um sweep sem bairro
     for _h in CONN.execute("SELECT * FROM hunts WHERE engine_id IS NOT NULL AND id NOT IN (SELECT hunt_id FROM sweeps)").fetchall():
@@ -242,8 +254,10 @@ def brand(name, category=""):
 
 PROFILE_DEFAULTS = {"me_name": "", "me_art": "o", "me_agency": "", "me_city": "", "me_region": "", "me_link": "", "me_whatsapp": "",
                     "me_instagram": "", "me_site": "", "me_logo": "", "me_services": "", "me_method": "", "me_method_desc": "",
-                    "diag_base": "", "diag_publish": "", "msg_mode": "diagnostico", "msg_tpl": 0, "msg_tpls": [
-                        {"name": "Reunião presencial", "text": (
+                    "diag_base": "", "diag_publish": "", "msg_mode": "diagnostico", "brand_color": "", "pipe_names": {}, "followup_days": 0,
+                    "followup_text": "Oi! Passando só pra saber se você conseguiu ver minha mensagem sobre o Google de vocês. Posso te mostrar em 10 minutos o que dá pra melhorar?",
+                    "diag_cases": "", "msg_tpl": 0, "msg_tpls": [
+                        {"name": "Reunião presencial", "cats": "", "text": (
                             "Oi! Tudo bem? Aqui é {meu_nome}, da {agencia}. Somos uma agência de marketing de {minha_cidade} e trabalhamos "
                             "com estratégias para ajudar negócios a atrair mais clientes e vender mais.\n\n"
                             "Primeiro, parabéns pelo perfil de vocês no Google: {avaliacoes} avaliações com nota {nota}! "
@@ -502,7 +516,10 @@ def analyse(row):
     pf = profile()
     tpls = [fill_tpl(t.get("text"), row, name, rating, reviews, row.get("category") or "") for t in pf["msg_tpls"]]
     if pf.get("msg_mode") == "modelo" and tpls:
-        pitch = tpls[min(int(pf.get("msg_tpl") or 0), len(tpls) - 1)]
+        cat = fold(f"{row.get('category') or ''} {row.get('categories') or ''}")
+        hit = next((n for n, t in enumerate(pf["msg_tpls"])
+                    if any(c.strip() and fold(c.strip()) in cat for c in (t.get("cats") or "").split(","))), None)
+        pitch = tpls[hit if hit is not None else min(int(pf.get("msg_tpl") or 0), len(tpls) - 1)]
     else:
         pitch = full if (pf.get("msg_mode") == "completa" or not pf.get("diag_base")) else make_teaser(name, tags, rating, reviews, seed, row.get("category") or "", row)
 
@@ -549,7 +566,7 @@ def wa_provider():
 
 
 def ack_of(row):
-    """Recibo da última mensagem enviada pelo Garimpo: enviada, entregue, lida ou sem entrega (só no gateway local)."""
+    """Recibo da última mensagem enviada pelo Engaging Sales: enviada, entregue, lida ou sem entrega (só no gateway local)."""
     if not row:
         return None
     if row["read_at"]:
@@ -580,6 +597,7 @@ def lead_out(r, hunts=None, hist=None, ack=False):
         hist = [dict(x) for x in q("SELECT ts, score, rating, reviews, site, insta FROM lead_history WHERE key=? ORDER BY ts", (key,))] if client else []
     return {"key": key, "hunt_id": r["hunt_id"], "hunts": hunts, "data": json.loads(r["data"]), "intel": json.loads(r["intel"]),
             "pipeline": r["pipeline"], "notes": r["notes"], "ai": r["ai"], "first_seen": r["first_seen"],
+            "deal_value": r["deal_value"] or "", "service": r["service"] or "", "meeting": r["meeting"] or "",
             "updated": r["updated"], "client": client, "history": hist,
             "wa": {"link": r["wa_link"], "out": r["wa_out"], "in": r["wa_in"], "text": r["wa_in_text"]}, "ack": ack,
             "diag": {"url": diag_url(r["diag_slug"]), "ai": bool(r["diag_ai"]), "pdf": bool(r["diag_pdf"]),
@@ -651,7 +669,7 @@ def overpass(query, wait=110):
 
     def go(url):
         try:
-            p = subprocess.run(["curl", "-s", "-m", str(wait - 5), "-A", "Garimpo/1.0 (ferramenta local de prospeccao)",
+            p = subprocess.run(["curl", "-s", "-m", str(wait - 5), "-A", "Engaging Sales/1.0 (ferramenta local de prospeccao)",
                                 "--data-urlencode", "data=" + query, url], capture_output=True, timeout=wait)
             els = json.loads(p.stdout or b"{}").get("elements")
             box.put((url, els if isinstance(els, list) else None))
@@ -762,7 +780,7 @@ def poll_sweep(h, s, n_sweeps):
         if old and old["hash"] == h_:
             if linked:  # já conhecido, mas apareceu nesta caçada também
                 emit("lead", lead_out(q("SELECT * FROM leads WHERE key=?", (key,), one=True)))
-                feed(hid, f"↺ {data['title']} (já estava no Garimpo)", "info", key)
+                feed(hid, f"↺ {data['title']} (já estava no Engaging Sales)", "info", key)
             continue
         intel = analyse(data)
         snapshot(key, intel)
@@ -860,8 +878,6 @@ def poll_hunt(h):
     opts = json.loads(h["opts"] or "{}")
     if st == "pronta" and opts.get("find"):
         match_client(hid, opts["find"], opts.get("cat", ""))
-    if st == "pronta" and not opts.get("kind") and support_bump():
-        emit("support", {"runs": int(wa_settings().get("support_runs", 0))})
     if st == "pronta":
         feed(hid, f"✔ {'Checagem' if opts.get('kind') else 'Caçada'} concluída · {leads['c']} lugares · {leads['hot'] or 0} quentes", "done")
     elif st == "erro":
@@ -985,7 +1001,7 @@ def start_hunt(kws, city, lat, lon, depth, opts, jobs):
     made = 0
     base = {k: opts[k] for k in ("email", "socials", "reviews_max")}
     for i, t in enumerate(jobs):
-        body = dict(base, name=f"garimpo #{hid} · {t.get('label') or t['bairro'] or ', '.join(kws)}"[:80], keywords=t["keywords"],
+        body = dict(base, name=f"engaging #{hid} · {t.get('label') or t['bairro'] or ', '.join(kws)}"[:80], keywords=t["keywords"],
                     lang="pt", country="br", depth=depth, zoom=t["zoom"],
                     max_time=max(150, 100 * depth * len(t["keywords"])))
         if t["lat"] and t["lon"]:
@@ -1009,7 +1025,7 @@ def start_hunt(kws, city, lat, lon, depth, opts, jobs):
 
 
 # ───────────────────────── Atualização pelo painel ─────────────────────────
-# Funciona quando o Garimpo foi instalado com `git clone`. Confere o GitHub, mostra o que mudou e, no clique, faz
+# Funciona quando o Engaging Sales foi instalado com `git clone`. Confere o GitHub, mostra o que mudou e, no clique, faz
 # `git pull --ff-only`, roda o instalador (que só baixa o que mudou, sempre conferindo hash) e reinicia o servidor.
 UPDATE = {"git": False, "checked": 0.0, "behind": 0, "changes": [], "local": "", "date": "", "dirty": False, "error": "", "busy": False, "step": ""}
 UPDATE_LOCK = threading.Lock()
@@ -1069,10 +1085,10 @@ def update_apply():
         r = subprocess.run([sys.executable, "-I", os.path.join(ROOT, "install.py")], cwd=ROOT, capture_output=True, text=True, timeout=900)
         if r.returncode != 0:
             raise RuntimeError("o instalador falhou: " + ((r.stdout or "") + (r.stderr or ""))[-200:].strip())
-        UPDATE["step"] = "Reiniciando o Garimpo…"
+        UPDATE["step"] = "Reiniciando o Engaging Sales…"
         emit("update", update_public())
-        env = dict(os.environ, GARIMPO_OPEN="0")
-        script = f'sleep 1; kill {os.getpid()}; sleep 2; cd "{ROOT}"; nohup "{sys.executable}" garimpo.py >> data/garimpo.log 2>&1 &'
+        env = dict(os.environ, ENGAGING_OPEN="0")
+        script = f'sleep 1; kill {os.getpid()}; sleep 2; cd "{ROOT}"; nohup "{sys.executable}" engaging.py >> data/engaging.log 2>&1 &'
         subprocess.Popen(["sh", "-c", script], env=env, start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except Exception as e:  # noqa: BLE001
         UPDATE.update(busy=False, step="", error=str(e)[:300])
@@ -1083,24 +1099,11 @@ def update_apply():
 
 # ───────────────────────── WhatsApp (Evolution API) ─────────────────────────
 SETTINGS_PATH = os.path.join(ROOT, "data", "settings.json")
-WA_DEFAULTS = {"typing": True, "provider": "gowa", "gowa_port": int(os.environ.get("GARIMPO_GOWA_PORT", "3010")), "gowa_user": "garimpo", "gowa_pass": "", "gowa_secret": "",
+WA_DEFAULTS = {"typing": True, "provider": "gowa", "gowa_port": int(os.environ.get("ENGAGING_GOWA_PORT", "3010")), "gowa_user": "garimpo", "gowa_pass": "", "gowa_secret": "",
                "evo_url": "", "evo_key": "", "evo_instance": "", "auto": False, "diag_auto": True, "daily": 30, "min_gap": 120,
                "max_gap": 300, "start": "09:00", "end": "18:00", "days": [0, 1, 2, 3, 4, 5]}
 WA = {"state": "desconfigurado", "version": "", "next_at": 0.0, "last_sync": "", "error": "", "alert": None, "device": ""}
 TERMS_VERSION = "1"
-# Apoio ao autor (opcional): aparece na 1ª caçada concluída e depois a cada 50. Troque pelos seus dados se fizer um fork.
-SUPPORT = {"nome": "Willian Claf", "chave": "c6a0d335-775a-4a2e-bb7a-2dfbf3f2cb67",
-           "copia": "00020126580014br.gov.bcb.pix0136c6a0d335-775a-4a2e-bb7a-2dfbf3f2cb675204000053039865802BR5912WILLIAN CLAF6014SANTA CATARINA62070503***6304C34D",
-           "every": 50}
-
-
-def support_bump():
-    """Conta uma rodada concluída; devolve True quando é hora de lembrar do café (1ª e depois a cada 50)."""
-    cfg = wa_settings()
-    n = int(cfg.get("support_runs", 0)) + 1
-    cfg["support_runs"] = n
-    wa_save(cfg)
-    return n == 1 or n % SUPPORT["every"] == 0
 
 
 def terms_ok():
@@ -1310,6 +1313,26 @@ def lead_touch(key, **cols):
     return r
 
 
+_fu_last = [0.0]
+
+
+def followup_enqueue():
+    """Põe na fila o follow-up de quem recebeu a 1ª mensagem pelo Engaging Sales há N dias e não respondeu (um só por lead)."""
+    pf = profile()
+    days = int(pf.get("followup_days") or 0)
+    if not days or not (pf.get("followup_text") or "").strip() or time.time() - _fu_last[0] < 600:
+        return
+    _fu_last[0] = time.time()
+    cutoff = (datetime.now() - timedelta(days=days)).isoformat(timespec="seconds")
+    for r in q("""SELECT l.*, o.phone FROM leads l JOIN outreach o ON o.key=l.key AND o.status='enviado' AND o.kind=''
+                  WHERE l.pipeline='contatado' AND l.client=0 AND COALESCE(l.wa_in,'')='' AND l.wa_out < ?
+                  AND l.key NOT IN (SELECT key FROM outreach WHERE kind='followup') GROUP BY l.key""", (cutoff,)):
+        d, i = json.loads(r["data"]), json.loads(r["intel"])
+        text = clean_msg(fill_tpl(pf["followup_text"], d, d.get("title") or "", i.get("rating") or 0, i.get("reviews") or 0, d.get("category") or ""))
+        q("INSERT INTO outreach(key, phone, text, status, created, kind) VALUES(?,?,?,?,?,?)", (r["key"], r["phone"], text, "fila", now(), "followup"))
+        feed(r["hunt_id"], f"🔁 Follow-up na fila para {d.get('title')}", "info", r["key"])
+
+
 def queue_worker():
     """Dispara a fila no seu ritmo: só dentro do horário, com limite diário e intervalo aleatório entre envios."""
     import random
@@ -1325,11 +1348,12 @@ def queue_worker():
             sent = q("SELECT COUNT(*) c FROM outreach WHERE status='enviado' AND substr(sent_at,1,10)=?", (today,), one=True)["c"]
             if sent >= int(cfg["daily"]):
                 continue
+            followup_enqueue()
             item = q("SELECT * FROM outreach WHERE status='fila' ORDER BY id LIMIT 1", one=True)
             if not item:
                 continue
             lr = q("SELECT * FROM leads WHERE key=?", (item["key"],), one=True)
-            if not lr or lr["pipeline"] != "novo" or lr["client"] or lr["wa_in"]:
+            if not lr or lr["pipeline"] != ("contatado" if item["kind"] == "followup" else "novo") or lr["client"] or lr["wa_in"]:
                 q("UPDATE outreach SET status='pulado', error='já está em conversa ou é cliente' WHERE id=?", (item["id"],))
                 emit("outreach", outreach_out(q("SELECT * FROM outreach WHERE id=?", (item["id"],), one=True)))
                 continue
@@ -1530,7 +1554,7 @@ def write_diag(r):
     d, i = json.loads(r["data"]), json.loads(r["intel"])
     slug = r["diag_slug"] or diag_slug(r["key"], d.get("title", ""), d.get("category", ""))
     ai = json.loads(r["diag_ai"]) if r["diag_ai"] else None
-    page = diag.render(d, i, peers_of(d, r["key"]), profile(), ai=ai, logo=profile().get("me_logo", ""), city=city_of(d))
+    page = diag.render(d, i, peers_of(d, r["key"]), profile(), ai=ai, logo=profile().get("me_logo", "") or LOGO_URI, city=city_of(d))
     os.makedirs(os.path.join(DIAG_DIR, slug), exist_ok=True)
     with open(os.path.join(DIAG_DIR, slug, "index.html"), "w") as f:
         f.write(page)
@@ -1667,7 +1691,7 @@ def diag_full(key, send=False):
 
 
 # ───────────────────────── Gateway local (Go WhatsApp Web Multidevice) ─────────────────────────
-# Roda neste Mac, só em 127.0.0.1, e avisa o Garimpo das mensagens por webhook assinado (HMAC).
+# Roda neste Mac, só em 127.0.0.1, e avisa o Engaging Sales das mensagens por webhook assinado (HMAC).
 GOWA_DIR = os.path.join(ROOT, "gateway")
 GOWA_BIN = os.path.join(GOWA_DIR, "bin", "gowa")
 try:
@@ -1677,12 +1701,12 @@ except OSError:
     GOWA_VERSION = ""
 GOWA_LOG = os.path.join(GOWA_DIR, "data", "gowa.log")
 _gowa_lock = threading.Lock()
-GOWA_DEVICE = "garimpo"
+GOWA_DEVICE = "garimpo"  # id do aparelho já pareado no gateway: trocar exige escanear o QR de novo
 _gowa_dev = {"ok": False}
 
 
 def iso_local(ts):
-    """Data/hora RFC3339 (ou epoch) para ISO local sem fuso, como o resto do Garimpo guarda."""
+    """Data/hora RFC3339 (ou epoch) para ISO local sem fuso, como o resto do Engaging Sales guarda."""
     if not ts:
         return now()
     try:
@@ -1763,7 +1787,7 @@ def gowa_device():
 
 
 def _gowa_env(cfg):
-    return dict(os.environ, APP_HOST="127.0.0.1", APP_PORT=str(cfg["gowa_port"]), APP_OS="Garimpo",
+    return dict(os.environ, APP_HOST="127.0.0.1", APP_PORT=str(cfg["gowa_port"]), APP_OS="EngagingSales",
                 APP_BASIC_AUTH=f"{cfg['gowa_user']}:{cfg['gowa_pass']}", APP_DEBUG="false",
                 APP_UI_ENABLED="false", APP_UI_AUTO_UPDATE="false", MCP_ENABLED="false",
                 WHATSAPP_WEBHOOK=f"http://127.0.0.1:{PORT}/api/gowa/hook", WHATSAPP_WEBHOOK_SECRET=cfg["gowa_secret"],
@@ -1798,8 +1822,8 @@ def _gowa_spawn(cfg, env):
 
 
 def ensure_gowa():
-    """Liga o gateway se não estiver de pé. Ele sobrevive a reinícios do Garimpo (a sessão do WhatsApp fica no disco dele).
-    Se a configuração que o Garimpo quer mudou desde que ele subiu (ex.: novos eventos de webhook), faz um reinício planejado."""
+    """Liga o gateway se não estiver de pé. Ele sobrevive a reinícios do Engaging Sales (a sessão do WhatsApp fica no disco dele).
+    Se a configuração que o Engaging Sales quer mudou desde que ele subiu (ex.: novos eventos de webhook), faz um reinício planejado."""
     with _gowa_lock:
         cfg = gowa_cfg()
         env = _gowa_env(cfg)
@@ -1867,7 +1891,7 @@ def gowa_check(cfg=None):
             kind = "desconectado"  # só conta como queda quem estava conectado
         else:
             kind = "aguardando"
-        if not (prev == "desconfigurado" and new == "conectado"):  # Garimpo acabou de abrir e o gateway já estava conectado: não é evento novo
+        if not (prev == "desconfigurado" and new == "conectado"):  # Engaging Sales acabou de abrir e o gateway já estava conectado: não é evento novo
             wa_event(kind, WA.get("error", ""))
         emit("wa", wa_public())
     return WA
@@ -1992,7 +2016,7 @@ def gowa_event(ev):
         for mid in p.get("ids") or []:
             row = q("SELECT * FROM wa_msgs WHERE id=?", (mid,), one=True)
             if not row:
-                continue  # recibo de mensagem que não foi o Garimpo que mandou
+                continue  # recibo de mensagem que não foi o Engaging Sales que mandou
             if col == "read_at":
                 q("UPDATE wa_msgs SET read_at=COALESCE(read_at, ?), delivered_at=COALESCE(delivered_at, ?) WHERE id=?", (now(), now(), mid))
             else:
@@ -2016,7 +2040,7 @@ def gowa_event(ev):
 
 
 class H(BaseHTTPRequestHandler):
-    server_version = "Garimpo/1.0"
+    server_version = "Engaging Sales/1.0"
 
     def log_message(self, *a):
         pass
@@ -2038,7 +2062,7 @@ class H(BaseHTTPRequestHandler):
         return json.loads(self.rfile.read(n) or b"{}") if n else {}
 
     def guard(self, mutating=True):
-        """Impede que outro site aberto no seu navegador use o Garimpo (CSRF e DNS rebinding)."""
+        """Impede que outro site aberto no seu navegador use o Engaging Sales (CSRF e DNS rebinding)."""
         host = (self.headers.get("Host") or "").lower()
         if host not in (f"localhost:{PORT}", f"127.0.0.1:{PORT}"):
             self.send(403, {"error": "host não permitido"})
@@ -2047,8 +2071,8 @@ class H(BaseHTTPRequestHandler):
         if origin and origin not in (f"http://localhost:{PORT}", f"http://127.0.0.1:{PORT}"):
             self.send(403, {"error": "origem não permitida"})
             return False
-        if mutating and self.headers.get("X-Garimpo") != "1":
-            self.send(403, {"error": "cabeçalho X-Garimpo ausente"})
+        if mutating and self.headers.get("X-Engaging") != "1":
+            self.send(403, {"error": "cabeçalho X-Engaging ausente"})
             return False
         return True
 
@@ -2069,8 +2093,6 @@ class H(BaseHTTPRequestHandler):
             if qs.get("check") and time.time() - UPDATE["checked"] > 60 and not UPDATE["busy"]:
                 update_check()
             return self.send(200, update_public())
-        if p == "/api/support":
-            return self.send(200, {k: SUPPORT[k] for k in ("nome", "chave", "copia")})
         if p == "/api/cities":
             try:
                 return self.send(200, engine_req("GET", "/api/v1/cities?q=" + urllib.parse.quote(qs.get("q", [""])[0])))
@@ -2129,7 +2151,7 @@ class H(BaseHTTPRequestHandler):
         buf = io.StringIO()
         w = csv.writer(buf)
         w.writerow(["score", "temperatura", "nome", "categoria", "telefone", "whatsapp", "emails", "site", "tipo_site",
-                    "instagram", "facebook", "nota", "avaliacoes", "bairro", "endereco", "lacunas", "funil", "notas", "maps"])
+                    "instagram", "facebook", "nota", "avaliacoes", "bairro", "endereco", "lacunas", "funil", "notas", "maps", "valor_proposta", "servico", "reuniao"])
         safe = lambda v: "'" + v if isinstance(v, str) and v[:1] in "=@+-" and not re.fullmatch(r"[+\d\s().-]+", v) else v
         for r in rows:
             l = lead_out(r)
@@ -2137,9 +2159,10 @@ class H(BaseHTTPRequestHandler):
             w.writerow([safe(x) for x in [i["score"], i["temp"], d["title"], d["category"], d["phone"],
                         ("https://wa.me/" + i["wa"]) if i["wa"] else "", ", ".join(i["emails"]), d["website"],
                         i["site_kind"], i["instagram"], i["facebook"], i["rating"], i["reviews"], d.get("_bairro", ""), d["address"],
-                        " | ".join(i["gaps"]), l["pipeline"], l["notes"], d["link"]]])
+                        " | ".join(i["gaps"]), l["pipeline"], l["notes"], d["link"],
+                        l["deal_value"], l["service"], l["meeting"]]])
         self.send(200, ("﻿" + buf.getvalue()).encode(), "text/csv; charset=utf-8",
-                  {"Content-Disposition": f'attachment; filename="garimpo-{hunt or "todos"}.csv"'})
+                  {"Content-Disposition": f'attachment; filename="engaging-sales-{hunt or "todos"}.csv"'})
 
     def sse(self):
         self.send_response(200)
@@ -2228,7 +2251,7 @@ class H(BaseHTTPRequestHandler):
                     sc = max(sc, 0.95)
                 if sc > bs:
                     best, bs = r, sc
-            if best and bs >= 0.9:  # já está no Garimpo: marca e re-checa
+            if best and bs >= 0.9:  # já está no Engaging Sales: marca e re-checa
                 q("UPDATE leads SET client=1, pipeline='fechado', updated=? WHERE key=?", (now(), best["key"]))
                 set_cat(best["key"], cat)
                 lr = q("SELECT * FROM leads WHERE key=?", (best["key"],), one=True)
@@ -2271,10 +2294,20 @@ class H(BaseHTTPRequestHandler):
                 if k in b:
                     cfg[k] = str(b[k]).strip()[:200]
             if isinstance(b.get("msg_tpls"), list):
-                cfg["msg_tpls"] = [{"name": str(t.get("name") or "Modelo")[:60], "text": str(t.get("text") or "")[:4000]}
+                cfg["msg_tpls"] = [{"name": str(t.get("name") or "Modelo")[:60], "cats": str(t.get("cats") or "")[:300],
+                                    "text": str(t.get("text") or "")[:4000]}
                                    for t in b["msg_tpls"][:20] if isinstance(t, dict) and str(t.get("text") or "").strip()]
             if "msg_tpl" in b:
                 cfg["msg_tpl"] = max(0, min(19, int(b["msg_tpl"] or 0)))
+            if "brand_color" in b:
+                cfg["brand_color"] = b["brand_color"] if re.fullmatch(r"#[0-9a-fA-F]{6}", str(b["brand_color"] or "")) else ""
+            if isinstance(b.get("pipe_names"), dict):
+                cfg["pipe_names"] = {k: str(v).strip()[:30] for k, v in b["pipe_names"].items() if k in PIPELINE and str(v).strip()}
+            if "followup_days" in b:
+                cfg["followup_days"] = max(0, min(60, int(b["followup_days"] or 0)))
+            for k, n in (("followup_text", 2000), ("diag_cases", 3000)):
+                if k in b:
+                    cfg[k] = str(b[k] or "").strip()[:n]
             if cfg.get("diag_publish") and not re.fullmatch(r"(?!-)[A-Za-z0-9._@~/:\-]+", cfg["diag_publish"]):
                 cfg["diag_publish"] = ""
             if cfg.get("diag_base") and not re.match(r"https?://[^\s]+$", cfg["diag_base"]):
@@ -2307,18 +2340,18 @@ class H(BaseHTTPRequestHandler):
                 wa_check(cfg)
             if any(k in b for k in ("me_name", "me_agency", "me_city", "me_link", "me_whatsapp", "me_instagram", "me_site", "msg_mode",
                                     "me_art", "me_region", "me_services", "me_logo", "me_method", "me_method_desc", "diag_base",
-                                    "msg_tpls", "msg_tpl")):
+                                    "msg_tpls", "msg_tpl", "diag_cases", "brand_color")):
                 rescore()  # remonta a mensagem de todos os leads com a nova apresentação
-                for r in q("SELECT o.id, l.intel FROM outreach o JOIN leads l ON l.key=o.key WHERE o.status='fila'"):
+                for r in q("SELECT o.id, l.intel FROM outreach o JOIN leads l ON l.key=o.key WHERE o.status='fila' AND o.kind=''"):
                     q("UPDATE outreach SET text=? WHERE id=?", (json.loads(r["intel"])["pitch"], r["id"]))
                 emit("reload", {})
             emit("wa", wa_public())
             return self.send(200, wa_public())
         if p == "/api/update/apply":
             if not UPDATE["git"] or UPDATE["behind"] < 1:
-                return self.send(409, {"error": "não há atualização disponível (ou o Garimpo não foi instalado com git clone)"})
+                return self.send(409, {"error": "não há atualização disponível (ou o Engaging Sales não foi instalado com git clone)"})
             if UPDATE["dirty"]:
-                return self.send(409, {"error": "você alterou arquivos do Garimpo. Atualize pelo terminal: git pull"})
+                return self.send(409, {"error": "você alterou arquivos do Engaging Sales. Atualize pelo terminal: git pull"})
             if UPDATE["busy"]:
                 return self.send(409, {"error": "já está atualizando"})
             threading.Thread(target=update_apply, daemon=True).start()
@@ -2399,6 +2432,9 @@ class H(BaseHTTPRequestHandler):
             q("UPDATE leads SET pipeline=?, updated=? WHERE key=?", (b["pipeline"], now(), key))
         if "notes" in b:
             q("UPDATE leads SET notes=?, updated=? WHERE key=?", (str(b["notes"])[:5000], now(), key))
+        for k in ("deal_value", "service", "meeting"):
+            if k in b:
+                q(f"UPDATE leads SET {k}=?, updated=? WHERE key=?", (str(b[k] or "")[:200], now(), key))
         if b.get("wa_link"):
             q("UPDATE leads SET wa_link=?, updated=? WHERE key=?", (now(), now(), key))
         if "client" in b:
@@ -2468,11 +2504,11 @@ def main():
     threading.Thread(target=engine_watch, daemon=True).start()
     threading.Thread(target=ensure_engine, daemon=True).start()
     threading.Thread(target=update_watch, daemon=True).start()
-    if os.environ.get("GARIMPO_OPEN") == "1":
+    if os.environ.get("ENGAGING_OPEN") == "1":
         threading.Timer(1.5, lambda: webbrowser.open(f"http://localhost:{PORT}")).start()
     srv = QuietServer(("127.0.0.1", PORT), H)
     srv.daemon_threads = True
-    log(f"GARIMPO no ar → http://localhost:{PORT}")
+    log(f"ENGAGING SALES no ar → http://localhost:{PORT}")
     try:
         srv.serve_forever()
     except KeyboardInterrupt:

@@ -1,4 +1,4 @@
-/* GARIMPO — painel ao vivo */
+/* ENGAGING SALES — painel ao vivo */
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -20,7 +20,7 @@ try { S.sound = localStorage.getItem('g_sound') !== '0'; } catch (e) {}
 /* ───────── utilidades ───────── */
 function toast(t) { const el = $('#toast'); el.textContent = t; el.classList.add('on'); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('on'), 2600); }
 async function api(m, p, b) {
-  const r = await fetch(p, { method: m, headers: Object.assign({ 'X-Garimpo': '1' }, b ? { 'Content-Type': 'application/json' } : {}), body: b ? JSON.stringify(b) : undefined });
+  const r = await fetch(p, { method: m, headers: Object.assign({ 'X-Engaging': '1' }, b ? { 'Content-Type': 'application/json' } : {}), body: b ? JSON.stringify(b) : undefined });
   const d = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
   return d;
@@ -35,7 +35,7 @@ function apiLink(l, text) { const n = l.intel.wa || l.intel.tel; return n ? `htt
 async function copyLink(key, text) {
   const l = S.leads.get(key); const u = l && apiLink(l, text); if (!u) { toast('Esse lead não tem número'); return; }
   api('PATCH', '/api/leads/' + encodeURIComponent(key), { wa_link: true });
-  copyText(u); toast('🔗 Link copiado. Quando você mandar, o Garimpo percebe sozinho.');
+  copyText(u); toast('🔗 Link copiado. Quando você mandar, o Engaging Sales percebe sozinho.');
 }
 function copyText(t) {
   const ta = document.createElement('textarea'); ta.value = t; ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
@@ -269,7 +269,7 @@ function renderKanban() {
     const col = ls.filter(l => l.pipeline === k).sort((a, b) => b.intel.score - a.intel.score);
     return `<section class="kcol" data-p="${k}" style="--c:${c}"><header><b><i></i>${name}</b><span>${col.length}</span></header>
       <div class="kl">${col.slice(0, 300).map(l => `<div class="kc" draggable="true" data-key="${esc(l.key)}">${ring(l.intel.score, l.intel.temp)}<div><b>${esc(l.data.title)}</b><small>${esc(l.intel.tags.slice(0, 2).join(' · ') || l.data.category)}</small>${l.wa?.in ? `<span class="wain">💬 ${esc(l.wa.text || '')}</span>` : l.wa?.out ? ackBadge(l) : ''}
-        ${k === 'contatado' || k === 'negociando' ? `<span class="kact">${!l.diag?.sent && (l.intel.wa || l.intel.tel) ? `<button data-kwant="${esc(l.key)}" title="A pessoa pediu o diagnóstico (EU QUERO): o Claude monta e o Garimpo manda o link">🙋 quer o diagnóstico</button>` : l.diag?.sent ? '<em>🧾 diagnóstico enviado</em>' : ''}${k === 'contatado' ? `<button data-kreply="${esc(l.key)}" title="Ela respondeu no WhatsApp: mover para Negociando">💬 respondeu</button>` : ''}</span>` : ''}</div></div>`).join('')}</div></section>`;
+        ${k === 'contatado' || k === 'negociando' ? `<span class="kact">${!l.diag?.sent && (l.intel.wa || l.intel.tel) ? `<button data-kwant="${esc(l.key)}" title="A pessoa pediu o diagnóstico (EU QUERO): o Claude monta e o Engaging Sales manda o link">🙋 quer o diagnóstico</button>` : l.diag?.sent ? '<em>🧾 diagnóstico enviado</em>' : ''}${k === 'contatado' ? `<button data-kreply="${esc(l.key)}" title="Ela respondeu no WhatsApp: mover para Negociando">💬 respondeu</button>` : ''}</span>` : ''}</div></div>`).join('')}</div></section>`;
   }).join('');
 }
 document.addEventListener('dragstart', e => { const k = e.target.closest?.('.kc'); if (k) e.dataTransfer.setData('text/plain', k.dataset.key); });
@@ -406,12 +406,16 @@ function openLead(key) {
       <div class="sec"><h5>Abordagem <span class="mono" style="letter-spacing:0">edite e mande</span></h5>
         ${i.tpls?.length ? `<select id="tplPick" class="bsel" style="max-width:none;padding:7px 10px;margin-bottom:6px"><option value="">Mensagem atual</option>${(S.wa?.cfg?.msg_tpls || []).map((t, n) => i.tpls[n] ? `<option value="${n}">📝 ${esc(t.name)}</option>` : '').join('')}</select>` : ''}
         <textarea class="pitch" id="pitch" rows="4">${esc(i.pitch)}</textarea>
-        <div class="row"><button class="btn" id="copyP">Copiar texto</button>${i.wa || i.tel ? '<button class="btn" id="linkP">🔗 Copiar link api.whatsapp</button>' : ''}${i.wa ? '<button class="btn" id="sendP">Abrir no WhatsApp</button>' : ''}${(i.wa || i.tel) && S.wa?.state === 'conectado' ? '<button class="btn gold" id="sendG">📤 Enviar pelo Garimpo</button>' : ''}</div>
+        <div class="row"><button class="btn" id="copyP">Copiar texto</button>${i.wa || i.tel ? '<button class="btn" id="linkP">🔗 Copiar link api.whatsapp</button>' : ''}${i.wa ? '<button class="btn" id="sendP">Abrir no WhatsApp</button>' : ''}${(i.wa || i.tel) && S.wa?.state === 'conectado' ? '<button class="btn gold" id="sendG">📤 Enviar pelo Engaging Sales</button>' : ''}</div>
         ${l.wa?.out || l.wa?.in || l.wa?.link ? `<div class="wabox" style="margin-top:10px">${l.wa.link ? `🔗 link copiado ${esc(fmtTs(l.wa.link))}<br>` : ''}${l.ack ? ackLine(l.ack) : l.wa.out ? `📤 você mandou ${esc(fmtTs(l.wa.out))}<br>` : ''}${l.wa.in ? `💬 <b>respondeu ${esc(fmtTs(l.wa.in))}:</b> ${esc(l.wa.text || '')}` : ''}</div>` : ''}</div>
       <div class="sec"><h5>🧠 Análise com Claude</h5>
         <input class="focus" id="aiFocus" placeholder="Foco opcional (ex: vendo tráfego pago, vendo site…)">
         <div class="row"><button class="btn ai" id="aiBtn" ${busy ? 'disabled' : ''}>${l.ai ? 'Analisar de novo' : 'Analisar esse lead'}</button></div>
         <div id="aiOut">${busy ? '<div class="aibox"><div class="thinking"><i></i><i></i><i></i>Claude está pensando…</div></div>' : l.ai ? `<div class="aibox">${md(l.ai)}</div>` : ''}</div></div>
+      <div class="sec"><h5>Negócio</h5><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+        <label class="mono" style="font-size:11px">Valor da proposta<input class="focus lx" data-f="deal_value" value="${esc(l.deal_value || '')}" placeholder="R$ 1.500/mês"></label>
+        <label class="mono" style="font-size:11px">Serviço<input class="focus lx" data-f="service" value="${esc(l.service || '')}" placeholder="Tráfego pago"></label>
+        <label class="mono" style="font-size:11px">Reunião<input class="focus lx" data-f="meeting" type="datetime-local" value="${esc(l.meeting || '')}"></label></div></div>
       <div class="sec"><h5>Notas</h5><textarea class="notes" id="notes" rows="3" placeholder="Falei com o dono, retorno sexta…">${esc(l.notes)}</textarea></div>
       <div class="sec"><h5>Ficha</h5><dl class="info">
         <dt>Endereço</dt><dd>${esc(d.address || '—')}</dd>
@@ -438,7 +442,7 @@ function openLead(key) {
   const sendG = $('#sendG'); if (sendG) sendG.onclick = async () => {
     if (!confirm('Enviar agora esta mensagem pelo seu WhatsApp?\n\n' + $('#pitch').value)) return;
     sendG.disabled = true; sendG.textContent = 'Enviando…';
-    try { const out = await api('POST', '/api/wa/send', { key, text: $('#pitch').value }); S.leads.set(key, out); toast('📤 Enviado'); openLead(key); } catch (er) { toast('Erro: ' + er.message); sendG.disabled = false; sendG.textContent = '📤 Enviar pelo Garimpo'; }
+    try { const out = await api('POST', '/api/wa/send', { key, text: $('#pitch').value }); S.leads.set(key, out); toast('📤 Enviado'); openLead(key); } catch (er) { toast('Erro: ' + er.message); sendG.disabled = false; sendG.textContent = '📤 Enviar pelo Engaging Sales'; }
   };
   const sendP = $('#sendP'); if (sendP) sendP.onclick = () => window.open(waLink(l, $('#pitch').value), '_blank', 'noopener');
   const tp = $('#tplPick'); if (tp) tp.onchange = () => { $('#pitch').value = tp.value === '' ? i.pitch : i.tpls[+tp.value]; $('#pitch').oninput(); };
@@ -449,6 +453,7 @@ function openLead(key) {
     if (b.dataset.p === 'fechado') { boom(); toast('💰 Fechou! Bora pro próximo.'); }
   });
   $('#cliBtn').onclick = async () => { const v = !l.client; const out = await api('PATCH', '/api/leads/' + encodeURIComponent(key), { client: v }); S.leads.set(key, out); toast(v ? '🛡 Agora é seu cliente: veja na Blindagem' : 'Removido dos clientes'); openLead(key); renderSoft(); };
+  $$('.lx').forEach(x => x.onchange = () => api('PATCH', '/api/leads/' + encodeURIComponent(key), { [x.dataset.f]: x.value }));
   let nt; $('#notes').oninput = e => { clearTimeout(nt); nt = setTimeout(() => api('PATCH', '/api/leads/' + encodeURIComponent(key), { notes: e.target.value }), 600); };
   $('#aiBtn').onclick = async () => {
     S.aiBusy.add(key); $('#aiBtn').disabled = true;
@@ -567,7 +572,6 @@ function connect() {
     if (prev && prev.status === 'rodando' && h.status === 'pronta') { boom(); toast(`✔ Caçada #${h.id} concluída`); fitMap(true); }
     renderProgress(); renderHunts();
   });
-  es.addEventListener('support', () => setTimeout(showSupport, 2500));
   es.addEventListener('update', e => { S.upd = JSON.parse(e.data); paintUpd(); });
   es.addEventListener('feed', e => feedLine(JSON.parse(e.data)));
   es.addEventListener('sweep', e => {
@@ -589,7 +593,7 @@ function connect() {
   es.onerror = () => setEngineConn(false);
 }
 function setEngine(a) { $('#engDot').className = 'dot ' + (a ? 'on' : 'off'); $('#engTxt').textContent = a ? 'motor online' : 'motor offline'; }
-function setEngineConn(ok) { if (!ok) { $('#engDot').className = 'dot off'; $('#engTxt').textContent = 'garimpo offline'; } }
+function setEngineConn(ok) { if (!ok) { $('#engDot').className = 'dot off'; $('#engTxt').textContent = 'engaging sales offline'; } }
 
 async function boot() {
   buildKpis();
@@ -599,9 +603,9 @@ async function boot() {
     loadWa();
     setEngine(st.engine); $('#aiDot').className = 'dot ' + (st.claude ? 'on' : 'off');
     const run = st.hunts.find(h => h.status === 'rodando'); if (run) S.hunt = String(run.id);
-  } catch (e) { toast('Servidor do Garimpo não respondeu'); }
+  } catch (e) { toast('Servidor do Engaging Sales não respondeu'); }
   renderAll(); setTimeout(() => fitMap(true), 300);
-  feedLine({ t: new Date().toLocaleTimeString('pt-BR'), text: '◉ Garimpo pronto. Monte uma caçada à esquerda.', tone: 'stage' });
+  feedLine({ t: new Date().toLocaleTimeString('pt-BR'), text: '◉ Engaging Sales pronto. Monte uma caçada à esquerda.', tone: 'stage' });
   connect();
 }
 boot();
@@ -761,7 +765,16 @@ document.addEventListener('click', async e => {
 /* ───────── WhatsApp ───────── */
 const DAYS = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom'];
 function fmtTs(ts) { if (!ts) return ''; const d = new Date(ts); return isNaN(d) ? ts : d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); }
-function paintWaDot() { const st = S.wa?.state; $('#waDot').className = 'dot ' + (st === 'conectado' ? 'on' : st && st !== 'desconfigurado' ? 'off' : ''); }
+const PIPE0 = Object.fromEntries(Object.entries(PIPE).map(([k, v]) => [k, v[0]]));
+function applyBrand(c) {
+  const r = document.documentElement.style, col = c?.brand_color;
+  if (col) { const n = parseInt(col.slice(1), 16), lum = (0.299 * (n >> 16) + 0.587 * (n >> 8 & 255) + 0.114 * (n & 255)) / 255; r.setProperty('--gold', col); r.setProperty('--gold2', col); r.setProperty('--btn-text', lum > 0.6 ? '#140e00' : '#fff'); }
+  else ['--gold', '--gold2', '--btn-text'].forEach(k => r.removeProperty(k));
+  let ch = false;
+  for (const k in PIPE) { const n = (c?.pipe_names || {})[k] || PIPE0[k]; if (PIPE[k][0] !== n) { PIPE[k][0] = n; ch = true; } }
+  if (ch && S.view === 'funil') renderKanban();
+}
+function paintWaDot() { applyBrand(S.wa?.cfg); const st = S.wa?.state; $('#waDot').className = 'dot ' + (st === 'conectado' ? 'on' : st && st !== 'desconfigurado' ? 'off' : ''); }
 async function loadWa() { try { const r = await api('GET', '/api/wa'); S.queue = r.queue; delete r.queue; S.wa = r; paintWaDot(); if (S.view === 'wa') renderWa(true); if (!S.onboarded) { S.onboarded = true; onboard(); } } catch (e) {} }
 async function loadQueue() { try { const r = await api('GET', '/api/wa'); S.queue = r.queue; delete r.queue; S.wa = r; renderQueue(); renderWaStatus(); } catch (e) {} }
 let waFilled = false;
@@ -776,6 +789,9 @@ function renderWa(force) {
     $('#meWa').value = c.me_whatsapp || ''; $('#meIg').value = c.me_instagram || ''; $('#meSite').value = c.me_site || ''; $('#msgMode').value = c.msg_mode || 'diagnostico'; $('#diagAuto').checked = c.diag_auto !== false;
     $('#meName').value = c.me_name || ''; $('#meAgency').value = c.me_agency || ''; $('#meCity').value = c.me_city || ''; $('#meLink').value = c.me_link || '';
     S.tpls = (c.msg_tpls || []).map(t => ({ ...t })); S.tplOn = c.msg_tpl || 0; S.tplI = Math.min(S.tplOn, Math.max(0, S.tpls.length - 1)); tplPaint();
+    $('#fuDays').value = c.followup_days || 0; $('#fuText').value = c.followup_text || ''; $('#diagCases').value = c.diag_cases || '';
+    $('#brandColor').value = c.brand_color || '#ffcf4a'; $('#brandColor').dataset.set = c.brand_color ? '1' : '';
+    $('#pipeNames').innerHTML = Object.keys(PIPE).map(k => `<input data-pk="${k}" value="${esc((c.pipe_names || {})[k] || PIPE0[k])}" maxlength="30">`).join('');
     mePreview();
     $('#waDays').innerHTML = DAYS.map((d, i) => `<button type="button" data-day="${i}" class="${c.days.includes(i) ? 'on' : ''}">${d}</button>`).join('');
   }
@@ -869,9 +885,12 @@ function tplPaint() {
   if (!S.tpls.length) S.tpls.push({ name: 'Modelo 1', text: '' });
   const t = S.tpls[S.tplI];
   $('#tplSel').innerHTML = S.tpls.map((x, i) => `<option value="${i}" ${i === S.tplI ? 'selected' : ''}>${esc(x.name || 'Modelo ' + (i + 1))}${i === S.tplOn ? ' ✓' : ''}</option>`).join('');
-  $('#tplName').value = t.name || ''; $('#tplText').value = t.text || ''; $('#tplUse').checked = S.tplI === S.tplOn;
+  $('#tplCats').value = t.cats || ''; $('#tplName').value = t.name || ''; $('#tplText').value = t.text || ''; $('#tplUse').checked = S.tplI === S.tplOn;
 }
 $('#tplSel').onchange = () => { S.tplI = +$('#tplSel').value; tplPaint(); };
+$('#tplCats').oninput = () => { S.tpls[S.tplI].cats = $('#tplCats').value; };
+$('#brandColor').oninput = () => { $('#brandColor').dataset.set = '1'; };
+$('#brandReset').onclick = () => { $('#brandColor').value = '#ffcf4a'; $('#brandColor').dataset.set = ''; };
 $('#tplName').oninput = () => { S.tpls[S.tplI].name = $('#tplName').value; };
 $('#tplText').oninput = () => { S.tpls[S.tplI].text = $('#tplText').value; };
 $('#tplUse').onchange = () => { if ($('#tplUse').checked) { S.tplOn = S.tplI; $('#msgMode').value = 'modelo'; } tplPaint(); };
@@ -894,7 +913,11 @@ $('#meForm').onsubmit = async e => {
     me_art: $('#meArt').value, me_region: $('#meRegion').value, me_services: $('#meServices').value, me_logo: $('#meLogo').value,
     me_method: $('#meMethod').value, diag_base: $('#diagBase').value, diag_publish: $('#diagPublish').value,
     me_whatsapp: $('#meWa').value, me_instagram: $('#meIg').value, me_site: $('#meSite').value, msg_mode: $('#msgMode').value, diag_auto: $('#diagAuto').checked,
-    msg_tpls: S.tpls.filter(t => t.text.trim()), msg_tpl: S.tplOn });
+    msg_tpls: S.tpls.filter(t => t.text.trim()), msg_tpl: S.tplOn,
+    followup_days: +$('#fuDays').value || 0, followup_text: $('#fuText').value, diag_cases: $('#diagCases').value,
+    brand_color: $('#brandColor').dataset.set ? $('#brandColor').value : '',
+    pipe_names: Object.fromEntries($$('#pipeNames input').map(x => [x.dataset.pk, x.value.trim() === PIPE0[x.dataset.pk] ? '' : x.value.trim()])) });
+  paintWaDot();
   toast('✍ Apresentação salva, refazendo as mensagens…');
 };
 
@@ -949,9 +972,9 @@ async function pollConn() {
 function showTerms() {
   const m = $('#modal');
   m.innerHTML = `<div class="box" style="max-height:88vh;overflow:auto"><h2>⚖️ Aviso importante</h2>
-    <p>O Garimpo é um software livre, entregue <b>como está, sem garantia</b>. Leia antes de usar:</p>
+    <p>O Engaging Sales é um software livre, entregue <b>como está, sem garantia</b>. Leia antes de usar:</p>
     <ul class="terms">
-      <li><b>WhatsApp não oficial.</b> A conexão usa um cliente de código aberto que <b>não é aprovado pelo WhatsApp</b>. O WhatsApp pode derrubar a sessão, restringir ou <b>banir o número</b>. Se isso acontecer, <b>nem o Garimpo nem os autores dos componentes têm culpa ou responsabilidade</b>. Use um número que você aceita arriscar, comece devagar (20 a 30 por dia) e respeite quem pedir para parar.</li>
+      <li><b>WhatsApp não oficial.</b> A conexão usa um cliente de código aberto que <b>não é aprovado pelo WhatsApp</b>. O WhatsApp pode derrubar a sessão, restringir ou <b>banir o número</b>. Se isso acontecer, <b>nem o Engaging Sales nem os autores dos componentes têm culpa ou responsabilidade</b>. Use um número que você aceita arriscar, comece devagar (20 a 30 por dia) e respeite quem pedir para parar.</li>
       <li><b>O ideal é usar o WhatsApp oficial</b> (WhatsApp Business Platform, a API da Meta), que tem custo e regras de modelos de mensagem, mas é o único caminho autorizado e seguro para volume.</li>
       <li><b>Google Maps.</b> Coletar dados do Google Maps pode contrariar os termos do Google. Seu IP pode ser bloqueado. Use com moderação.</li>
       <li><b>LGPD e mensagens frias.</b> Você é o responsável por ter base legal, oferecer descadastro e cumprir as leis do seu país sobre contato comercial. Isto não é aconselhamento jurídico.</li>
@@ -975,34 +998,13 @@ function onboard() {
 }
 
 
-/* ───────── apoio ao autor (opcional): ☕ no topo, e um convite na 1ª caçada e a cada 50 ───────── */
-async function showSupport() {
-  let d; try { d = await api('GET', '/api/support'); } catch (e) { return; }
-  const m = $('#modal');
-  m.innerHTML = `<div class="box"><div style="width:100%;text-align:center"><div style="font-size:42px">☕</div><h2>Gostou do Garimpo?</h2>
-    <p>Ele é grátis e vai continuar grátis. Se te ajudou a achar clientes, um Pix de qualquer valor me ajuda a manter e melhorar. Se quiser me pagar um café, sou muito grato. 💚</p>
-    <img src="/pix.svg" alt="QR Code do Pix" width="190" height="190" style="display:block;margin:12px auto 0;border-radius:12px;image-rendering:pixelated;background:#fff">
-    <div style="opacity:.7;font-size:12px;margin-top:6px">Aponte a câmera do app do seu banco para o QR Code</div>
-    <div style="margin:14px 0;padding:12px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid var(--line2);word-break:break-all;font-size:12.5px">
-      <div style="opacity:.7;margin-bottom:4px">Chave Pix (${esc(d.nome)})</div><b id="pixKey">${esc(d.chave)}</b></div>
-    <div class="row"><button class="btn" id="pixLater" type="button">Agora não</button>
-      <button class="btn gold" id="pixCopy" type="button">Copiar Pix Copia e Cola</button></div></div></div>`;
-  m.classList.add('on');
-  $('#pixLater').onclick = () => m.classList.remove('on');
-  $('#pixCopy').onclick = async () => {
-    try { await navigator.clipboard.writeText(d.copia); }
-    catch (e) { const t = document.createElement('textarea'); t.value = d.copia; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); }
-    $('#pixCopy').textContent = '✓ Copiado! Cole no app do banco'; toast('Pix copiado. Valeu demais! 💚');
-  };
-}
-$('#coffee').onclick = showSupport;
 
 
 /* ───────── tema claro/escuro ───────── */
 $('#themeBtn').onclick = () => {
   const next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
   document.documentElement.setAttribute('data-theme', next);
-  try { localStorage.setItem('garimpo_theme', next); } catch (e) {}
+  try { localStorage.setItem('engaging_theme', next); } catch (e) {}
 };
 
 
@@ -1020,7 +1022,7 @@ function showUpdate() {
   m.innerHTML = `<div class="box"><div style="width:100%"><h2>⬆ Atualização disponível</h2>
     <p>Você está na versão <b>${esc(u.local || '?')}</b>${u.date ? ' (' + esc(u.date) + ')' : ''}. O que há de novo:</p>
     <ul class="terms" data-noi18n>${(u.changes || []).map(c => `<li>${esc(c)}</li>`).join('') || '<li>…</li>'}</ul>
-    ${u.dirty ? '<p style="color:var(--hot)">Você alterou arquivos do Garimpo. Atualize pelo terminal: <code>git pull</code></p>' : '<p style="opacity:.75;font-size:12.5px">O Garimpo baixa a versão nova, confere os componentes e reinicia sozinho. Seus leads e configurações ficam como estão. Se o WhatsApp estiver conectado, ele reconecta em instantes.</p>'}
+    ${u.dirty ? '<p style="color:var(--hot)">Você alterou arquivos do Engaging Sales. Atualize pelo terminal: <code>git pull</code></p>' : '<p style="opacity:.75;font-size:12.5px">O Engaging Sales baixa a versão nova, confere os componentes e reinicia sozinho. Seus leads e configurações ficam como estão. Se o WhatsApp estiver conectado, ele reconecta em instantes.</p>'}
     <div id="updStep" style="min-height:20px;font-size:13px;color:var(--gold)"></div>
     <div class="row"><button class="btn" id="updLater" type="button">Depois</button>
       <button class="btn gold" id="updGo" type="button" ${u.dirty ? 'disabled' : ''}>Atualizar agora</button></div></div></div>`;
@@ -1037,9 +1039,9 @@ function showUpdate() {
         const j = await r.json();
         if (j.error) { $('#updStep').textContent = j.error; $('#updLater').disabled = false; $('#updGo').disabled = false; $('#updGo').textContent = 'Tentar de novo'; return; }
         if (down || (j.local && j.local !== before) || (Date.now() - t0 > 25000 && !j.busy)) { location.reload(); return; }
-      } catch (e) { down = true; $('#updStep').textContent = 'Reiniciando o Garimpo…'; }
+      } catch (e) { down = true; $('#updStep').textContent = 'Reiniciando o Engaging Sales…'; }
     }
-    $('#updStep').textContent = 'Demorou mais que o normal. Recarregue a página ou rode ./garimpo start.';
+    $('#updStep').textContent = 'Demorou mais que o normal. Recarregue a página ou rode ./engaging-sales start.';
   };
 }
 $('#updBtn').onclick = showUpdate;

@@ -1,3 +1,7 @@
+# Engaging Sales
+
+Engaging Sales é baseado no [Garimpo](https://github.com/Willclaf/garimpo) (licença MIT).
+
 # Créditos
 
 O Garimpo existe porque outras pessoas construíram e abriram o código das peças mais difíceis. Todo o mérito delas
@@ -59,7 +63,7 @@ Olhamos o que estes projetos entregam para decidir o que o Garimpo deveria ter. 
 
 ## Este projeto
 
-O código do Garimpo (`garimpo.py`, `diag.py`, `web/`, `install.py`) está sob a licença [MIT](LICENSE).
+O código do Garimpo (`engaging.py`, `diag.py`, `web/`, `install.py`) está sob a licença [MIT](LICENSE).
 Veja também o [aviso importante](DISCLAIMER.md).
 
 Encontrou algum crédito faltando ou errado? Abra uma issue que eu corrijo.
